@@ -10,12 +10,20 @@ class StarsgazerItem(Item):
     # name = Field()
     pass
 
+class ProgramItem(Item):
+    code = Field()
+    title = Field()
+    courses = Field()
+
 class CourseItem(Item):
     code = Field()
     title = Field()
     au = Field()
-    program = Field()
+    passfail = Field()
     prereq = Field()
     mutex = Field()
     unavail = Field()
+    ue_unavail = Field()
+    pe_unavail = Field()
+    core_unavail = Field()
     desc = Field()
