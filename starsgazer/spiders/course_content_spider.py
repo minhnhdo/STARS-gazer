@@ -16,18 +16,18 @@ class ContentSpider(BaseSpider):
 
     def parse(self, response):
         hxs = HtmlXPathSelector(response)
-        # selecting the last value in academic year
+        # selecting the latest date in academic year
         acadsem = hxs.select('//select[@name="acadsem"]/*[last()]/@value').extract()[0]
         acad, semester = acadsem.split('_')
         # load the courses of the whole semester
         boption = 'CLoad'
         programs = hxs.select('//select[@name="r_course_yr"]/*/@value').extract()
-        for i, p in enumerate(hxs.select('//select[@name="r_course_yr"]/*/@value').extract()):
-            print i, p
+        #for i, p in enumerate(hxs.select('//select[@name="r_course_yr"]/*/@value').extract()):
+        #    print i, p
         #programs = 'CSC;;2;F',
         prognames = hxs.select('//select[@name="r_course_yr"]/*/text()').extract()
         retval = []
-        for title, r_course_yr in zip(prognames, programs[:172]):
+        for title, r_course_yr in zip(prognames, programs):#[322:323]):#[:172]):
             if r_course_yr == '':
                 continue
 
@@ -86,14 +86,24 @@ class ContentSpider(BaseSpider):
         retval = []
         hxs = HtmlXPathSelector(response)
         courses = hxs.select('.//tr[descendant::font[@color="#0000FF"]]')
-        for course in courses:
-            courseitem = CourseItem()
+        data = hxs.extract().split(courses[0].extract())[1]
+        course_details = []
+        for course in courses[1:]:
+            s = data.split(course.extract())
+            course_details.append(s[0])
+            data = s[1]
+        course_details.append(s[1])
+        flags = re.UNICODE | re.MULTILINE #| re.DOTALL
+        for course, course_detail in zip(courses, course_details):
             code_title_au_dept = list(map(unicode.strip, course.select('.//font/text()').extract()))
-            courseitem['code'] = code_title_au_dept[0]
-            if courseitem['code'] not in courselist:
-                continue
-            courseitem['title'] = code_title_au_dept[1]
-            courseitem['au'] = code_title_au_dept[2]
+            passfail = filter(None, re.findall(u'<font.*color="RED">([^<]*)', course_detail, flags))
+            mutex = filter(None, re.findall(u'<font.*color="BROWN">([^<]*)', course_detail, flags))
+            unavail = filter(None, re.findall(u'<font.*color="GREEN">([^<]*)', course_detail, flags))
+            prereq = filter(None, re.findall(u'<font.*color="#FF00FF">([^<]*)', course_detail, flags))
+            desc = re.search('<font size="2">([^<]*)', course_detail).groups()[0].strip('\n')
+            courseitem = self._fill_in(courselist, code_title_au_dept, passfail, mutex, unavail, prereq, desc)
+            if courseitem:
+                retval.append(courseitem)
         return retval
 
     def parse_program_courses(self, response, courselist):
@@ -101,39 +111,45 @@ class ContentSpider(BaseSpider):
         hxs = HtmlXPathSelector(response)
         courses = hxs.select('//table')
         for course in courses:
-            courseitem = CourseItem()
             details = course.select('.//tr')
             code_title_au = list(map(unicode.strip, details[0].select('.//font/text()').extract()))
-            if code_title_au == []:
-                with open('results/odd.html', 'a') as f:
-                    f.write(repr(course.extract()) + '\n')
-                continue
-            courseitem['code'] = code_title_au[0]
-            # no need to scrape already scraped courses
-            if courseitem['code'] not in courselist:
-                continue
-            courseitem['title'] = code_title_au[1]
-            courseitem['au'] = code_title_au[2][:code_title_au[2].rfind(' AU')]
-            if course.select('.//font[@color="RED"]/text()').extract() != []:
-                courseitem['passfail'] = True
-            courseitem['mutex'] = course.select('.//font[@color="BROWN"]/text()').extract()
-            if courseitem['mutex'] == []:
-                courseitem['mutex'] = u''
-            else:
-                courseitem['mutex'] = courseitem['mutex'][1]
+            passfail = course.select('.//font[@color="RED"]/text()').extract()
+            mutex = course.select('.//font[@color="BROWN"]/text()').extract()
             unavail = course.select('.//font[@color="GREEN"]/text()').extract()
-            for i in range(0, len(unavail), 2):
-                if unavail[i].find('UE') != -1:
-                    courseitem['ue_unavail'] = unavail[i+1]
-                elif unavail[i].find('PE') != -1:
-                    courseitem['pe_unavail'] = unavail[i+1]
-                elif unavail[i].find('Core') != -1:
-                    courseitem['core_unavail'] = unavail[i+1]
-                else:
-                    courseitem['unavail'] = unavail[i+1]
-            courseitem['prereq'] = course.select('.//font[@color="#FF00FF"]/text()').extract()
-            if courseitem['prereq'] != []:
-                courseitem['prereq'] = courseitem['prereq'][1:]
-            courseitem['desc'] = details[-1].select('.//font/text()').extract()[0].strip('\n')
-            retval.append(courseitem)
+            prereq = course.select('.//font[@color="#FF00FF"]/text()').extract()
+            desc = details[-1].select('.//font/text()').extract()[0].strip('\n')
+            courseitem = self._fill_in(courselist, code_title_au, passfail, mutex, unavail, prereq, desc)
+            if courseitem:
+                retval.append(courseitem)
         return retval
+
+    def _fill_in(self, courselist, ctad, passfail, mutex, unavail, prereq, desc):
+        courseitem = CourseItem()
+        courseitem['code'] = ctad[0]
+        # no need to scrape already scraped courses
+        if courseitem['code'] not in courselist:
+            return None
+        courseitem['title'] = ctad[1]
+        courseitem['au'] = ctad[2]
+        foundau = ctad[2].rfind(' AU')
+        if foundau != -1:
+            courseitem['au'] = courseitem['au'][:foundau]
+        if passfail:
+            courseitem['passfail'] = True
+        if mutex == []:
+            courseitem['mutex'] = u''
+        else:
+            courseitem['mutex'] = mutex[1]
+        for i in range(0, len(unavail), 2):
+            if unavail[i].find('UE') != -1:
+                courseitem['ue_unavail'] = unavail[i+1]
+            elif unavail[i].find('PE') != -1:
+                courseitem['pe_unavail'] = unavail[i+1]
+            elif unavail[i].find('Core') != -1:
+                courseitem['core_unavail'] = unavail[i+1]
+            else:
+                courseitem['unavail'] = unavail[i+1]
+        if prereq != []:
+            courseitem['prereq'] = filter((lambda x: x != u'Prerequisite:'), prereq)
+        courseitem['desc'] = desc
+        return courseitem
