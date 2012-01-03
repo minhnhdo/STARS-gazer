@@ -1,3 +1,2 @@
-﻿# STARS gazer #
-
+# STARS gazer #
 STARS content scapers
