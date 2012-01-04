@@ -85,14 +85,26 @@ class ContentSpider(BaseSpider):
     def parse_course_list(self, response, courselist):
         retval = []
         hxs = HtmlXPathSelector(response)
+
         courses = hxs.select('.//tr[descendant::font[@color="#0000FF"]]')
+        length = len(courses)
+        if length == 0:
+            # no course to process
+            return []
+
         data = hxs.extract().split(courses[0].extract())[1]
-        course_details = []
-        for course in courses[1:]:
-            s = data.split(course.extract())
-            course_details.append(s[0])
-            data = s[1]
-        course_details.append(s[1])
+
+        if length == 1:
+            course_details = [data]
+        else:
+            course_details = []
+            for course in courses[1:]:
+                s = data.split(course.extract())
+                course_details.append(s[0])
+                data = s[1]
+            course_details.append(s[1])
+
+        assert(length == len(course_details))
         flags = re.UNICODE | re.MULTILINE #| re.DOTALL
         for course, course_detail in zip(courses, course_details):
             code_title_au_dept = list(map(unicode.strip, course.select('.//font/text()').extract()))
@@ -100,7 +112,7 @@ class ContentSpider(BaseSpider):
             mutex = filter(None, re.findall(u'<font.*color="BROWN">([^<]*)', course_detail, flags))
             unavail = filter(None, re.findall(u'<font.*color="GREEN">([^<]*)', course_detail, flags))
             prereq = filter(None, re.findall(u'<font.*color="#FF00FF">([^<]*)', course_detail, flags))
-            desc = re.search('<font size="2">([^<]*)', course_detail).groups()[0].strip('\n')
+            desc = re.search(u'<font size="2">([^<]*)', course_detail).groups()[0].strip('\n')
             courseitem = self._fill_in(courselist, code_title_au_dept, passfail, mutex, unavail, prereq, desc)
             if courseitem:
                 retval.append(courseitem)
