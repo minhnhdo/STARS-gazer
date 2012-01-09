@@ -181,7 +181,7 @@ class ContentSpider(BaseSpider):
             else:
                 unavail_str += 'all'
 
-            if len(unavail_str) < 5: # can't happend
+            if len(unavail_str) < 5: # can't happen
                 raise TypeError('wtf this is wrong!!!!!!!!!!!!')
 
             unavail_dict[unavail_str] = unavail[i+1]

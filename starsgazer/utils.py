@@ -6,7 +6,4 @@ def unescape_strip_newline_space(a):
     if isinstance(a, str) or isinstance(a, unicode):
         return htmlparser.unescape(a).strip('\n').strip()
     else:
-        retval = []
-        for i in a:
-            retval.append(htmlparser.unescape(i).strip('\n').strip())
-        return retval
+        return [htmlparser.unescape(i).strip('\n').strip() for i in a]
