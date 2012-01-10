@@ -170,7 +170,7 @@ class ContentSpider(BaseSpider):
             else:
                 with open('results/wierds.html', 'a') as f:
                     f.write(str(ctad) + ' ' + str(passfail) + ' ' + str(mutex) + ' ' + str(unavail) + ' ' + str(prereq) + ' ' + str(desc))
-                return
+                return None
 
             if unavail[i].find('UE') != -1:
                 unavail_str += 'ue'
