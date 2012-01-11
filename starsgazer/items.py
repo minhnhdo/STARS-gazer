@@ -24,3 +24,21 @@ class CourseItem(Item):
     mutex = Field()
     unavail = Field()
     desc = Field()
+
+class BriefCourseItem(Item):
+    code = Field()
+    title = Field()
+    au = Field()
+    prereq = Field()
+    indices = Field()
+    ue = Field()
+    pe = Field()
+
+class ClassItem(Item):
+    code = Field()
+    type = Field()
+    group = Field()
+    day = Field()
+    time = Field()
+    venue = Field()
+    remark = Field()

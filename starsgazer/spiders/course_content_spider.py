@@ -23,8 +23,6 @@ class ContentSpider(BaseSpider):
         # load the courses of the whole semester
         boption = 'CLoad'
         programs = hxs.select('//select[@name="r_course_yr"]/*/@value').extract()
-        #for i, p in enumerate(hxs.select('//select[@name="r_course_yr"]/*/@value').extract()):
-        #    print i, p
         #programs = 'CSC;;2;F',
         prognames = hxs.select('//select[@name="r_course_yr"]/*/text()').extract()
         retval = []
@@ -33,7 +31,7 @@ class ContentSpider(BaseSpider):
                 continue
 
             code = r_course_yr.split(';')
-            callback = self.parse_program(response, acadsem, title, code)
+            callback = self.parse_program(acadsem, title, code)
             retval.append(FormRequest.from_response(response,
                                                     formdata=dict(acadsem=acadsem,
                                                                   acad=acad,
@@ -51,7 +49,7 @@ class ContentSpider(BaseSpider):
         # 'acadsem': '2011_2',
         # 'r_course_yr': 'CSC;;2;F',
 
-    def parse_program(self, mainpage, acadsem, title, code):
+    def parse_program(self, acadsem, title, code):
         def helper(response):
             hxs = HtmlXPathSelector(response)
             program = ProgramItem()
@@ -61,6 +59,8 @@ class ContentSpider(BaseSpider):
 
             program['title'] = utils.unescape_strip_newline_space(title)
             program['code'] = utils.unescape_strip_newline_space(code)
+
+            self.log('scraping ' + program['title'], level=log.INFO)
 
             rows = hxs.select('.//tr[descendant::font[@color="#0000FF"]]')
             for r in rows:
@@ -105,7 +105,9 @@ class ContentSpider(BaseSpider):
                 data = s[1]
             course_details.append(s[1])
 
+        # sanity check
         assert(length == len(course_details))
+
         flags = re.UNICODE | re.MULTILINE #| re.DOTALL
         for course, course_detail in zip(courses, course_details):
             code_title_au_dept = course.select('.//font/text()').extract()
