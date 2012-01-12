@@ -22,14 +22,27 @@ class ContentSpider(BaseSpider):
         acad, semester = acadsem.split('_')
         # load the courses of the whole semester
         boption = 'CLoad'
-        programs = hxs.select('//select[@name="r_course_yr"]/*/@value').extract()
+        programs = hxs.select('//select[@name="r_course_yr"]/option').re(re.compile('<.*value="([\w;\d]*)".*>([^<]*)', re.UNICODE))
         #programs = 'CSC;;2;F',
-        prognames = hxs.select('//select[@name="r_course_yr"]/*/text()').extract()
+        progcodes = programs[:len(programs):2]
+        prognames = programs[1:len(programs):2]
         retval = []
-        for title, r_course_yr in zip(prognames, programs):#[322:323]):#[:172]):
+
+        count = 0
+
+        # sanity checks
+        assert(len(prognames) == len(progcodes))
+        assert(len(prognames) == len(programs) / 2)
+
+        with open('results/abc', 'w') as f:
+            for i, v in enumerate(progcodes):
+                f.write(str(i) + ' ' + str(v) + ' ' + str(prognames[i][:-1]) + '\n')
+
+        for title, r_course_yr in zip(prognames, progcodes):#[322:323]):#[:172]):
             if r_course_yr == '':
                 continue
 
+            count += 1
             code = r_course_yr.split(';')
             callback = self.parse_program(acadsem, title, code)
             retval.append(FormRequest.from_response(response,
@@ -40,6 +53,7 @@ class ContentSpider(BaseSpider):
                                                                   r_course_yr=r_course_yr,
                                                                   ),
                                                     callback=callback))
+        print 'Number of programs:', count
         return retval
         # for individual course
         # 'boption': 'Search',
@@ -54,7 +68,6 @@ class ContentSpider(BaseSpider):
             hxs = HtmlXPathSelector(response)
             program = ProgramItem()
             courses = []
-            toscrape = []
             retval = [program]
 
             program['title'] = utils.unescape_strip_newline_space(title)
@@ -66,16 +79,13 @@ class ContentSpider(BaseSpider):
             for r in rows:
                 c = utils.unescape_strip_newline_space(r.select('.//font/text()').extract()[0])
                 courses.append(c)
-                if c not in self.scraped_courses:
-                    self.scraped_courses.add(c)
-                    toscrape.append(c)
 
             program['courses'] = courses
 
             if code[0].startswith('GL') or code[0].startswith('GE') or code[0].startswith('ML') or code[0].startswith('CN'):
-                courseitems = self.parse_course_list(response, toscrape)
+                courseitems = self.parse_course_list(response, courses)
             else:
-                courseitems = self.parse_program_courses(response, toscrape)
+                courseitems = self.parse_program_courses(response, courses)
 
             retval.extend(courseitems)
 
@@ -149,8 +159,12 @@ class ContentSpider(BaseSpider):
         courseitem = CourseItem()
         courseitem['code'] = ctad[0]
         # no need to scrape already scraped courses
-        if courseitem['code'] not in courselist:
+        if courseitem['code'] in self.scraped_courses:
             return None
+        else:
+            with open('results/scrapedc', 'a') as f:
+                f.write(courseitem['code'] + '\n')
+            self.scraped_courses.add(courseitem['code'])
         courseitem['title'] = ctad[1]
         courseitem['au'] = ctad[2]
         foundau = courseitem['au'].rfind(' AU')
@@ -191,6 +205,6 @@ class ContentSpider(BaseSpider):
             courseitem['unavail'] = unavail_dict
 
         if prereq != []:
-            courseitem['prereq'] = filter((lambda x: x != u'Prerequisite:'), prereq)
+            courseitem['prereq'] = filter(lambda x: x and not x.startswith('Prerequisite'), prereq)
         courseitem['desc'] = desc
         return courseitem
